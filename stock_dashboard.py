@@ -91,7 +91,7 @@ fig, ax = plt.subplots(figsize=(12, 6))
  #   df_plot = filtered_data[filtered_data['Ticker'] == ticker]
  #   ax.plot(df_plot['Date'], df_plot['Close'], label=f"{ticker} Close")
     
-# later on, pasted code starts
+    # later on, pasted code starts
     for ticker in tickers:
     df_plot = filtered_data[filtered_data['Ticker'] == ticker]
 
@@ -109,7 +109,7 @@ fig, ax = plt.subplots(figsize=(12, 6))
     ax.plot(buys['Date'], buys['Close'], '^', color='green', label=f"{ticker} Buy", markersize=8)
     ax.plot(sells['Date'], sells['Close'], 'v', color='red', label=f"{ticker} Sell", markersize=8)
 
-# later on, pasted code ends here
+   # later on, pasted code ends here
     
     
     if ma_window:
