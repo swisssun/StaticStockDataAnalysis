@@ -47,6 +47,29 @@ filtered_data = combined_df[
     (combined_df['Date'] <= pd.to_datetime(end_date))
 ].copy()
 
+# The pasted code starts here
+# --- STRATEGY: SMA Crossover ---
+
+# Calculate 20 and 50-day SMAs for each ticker
+filtered_data['SMA20'] = filtered_data.groupby('Ticker')['Close'].transform(lambda x: x.rolling(20).mean())
+filtered_data['SMA50'] = filtered_data.groupby('Ticker')['Close'].transform(lambda x: x.rolling(50).mean())
+
+# Generate buy/sell signals
+filtered_data['Signal'] = 0
+filtered_data.loc[
+    (filtered_data['SMA20'] > filtered_data['SMA50']) & 
+    (filtered_data['SMA20'].shift(1) <= filtered_data['SMA50'].shift(1)),
+    'Signal'
+] = 1  # Buy
+
+filtered_data.loc[
+    (filtered_data['SMA20'] < filtered_data['SMA50']) & 
+    (filtered_data['SMA20'].shift(1) >= filtered_data['SMA50'].shift(1)),
+    'Signal'
+] = -1  # Sell
+
+# The pasted code ends here
+
 # Normalize prices
 if normalize:
     for ticker in tickers:
