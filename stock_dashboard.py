@@ -87,9 +87,31 @@ if ma_window:
 st.title("Stock Price Chart")
 fig, ax = plt.subplots(figsize=(12, 6))
 
-for ticker in tickers:
+#for ticker in tickers:
+ #   df_plot = filtered_data[filtered_data['Ticker'] == ticker]
+ #   ax.plot(df_plot['Date'], df_plot['Close'], label=f"{ticker} Close")
+    
+# later on, pasted code starts
+    for ticker in tickers:
     df_plot = filtered_data[filtered_data['Ticker'] == ticker]
+
+    # Plot price line
     ax.plot(df_plot['Date'], df_plot['Close'], label=f"{ticker} Close")
+
+    # Plot SMA lines (optional)
+    ax.plot(df_plot['Date'], df_plot['SMA20'], linestyle='--', label=f"{ticker} SMA20", alpha=0.6)
+    ax.plot(df_plot['Date'], df_plot['SMA50'], linestyle='--', label=f"{ticker} SMA50", alpha=0.6)
+
+    # Plot buy/sell markers
+    buys = df_plot[df_plot['Signal'] == 1]
+    sells = df_plot[df_plot['Signal'] == -1]
+
+    ax.plot(buys['Date'], buys['Close'], '^', color='green', label=f"{ticker} Buy", markersize=8)
+    ax.plot(sells['Date'], sells['Close'], 'v', color='red', label=f"{ticker} Sell", markersize=8)
+
+# later on, pasted code ends here
+    
+    
     if ma_window:
         ax.plot(df_plot['Date'], df_plot['SMA'], linestyle='--', label=f"{ticker} {ma_window}-day SMA")
 
