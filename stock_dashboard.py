@@ -38,7 +38,16 @@ end_date = st.sidebar.date_input("End Date", pd.to_datetime("2023-01-01"))
 
 normalize = st.sidebar.checkbox("Normalize Prices", value=False)
 show_volume = st.sidebar.checkbox("Show Volume Plot", value=False)
-ma_window = st.sidebar.selectbox("Moving Average (days)", options=[None, 7, 20, 50], index=0)
+
+strategy = st.sidebar.selectbox(
+    "Select Strategy",
+    options=["None", "SMA Crossover"]
+)
+
+short_window = long_window = None
+if strategy == "SMA Crossover":
+    short_window = st.sidebar.slider("Short SMA Window", 5, 50, 20)
+    long_window = st.sidebar.slider("Long SMA Window", 10, 100, 50)
 
 # Filter data
 filtered_data = combined_df[
@@ -47,29 +56,6 @@ filtered_data = combined_df[
     (combined_df['Date'] <= pd.to_datetime(end_date))
 ].copy()
 
-# The pasted code starts here
-# --- STRATEGY: SMA Crossover ---
-
-# Calculate 20 and 50-day SMAs for each ticker
-filtered_data['SMA20'] = filtered_data.groupby('Ticker')['Close'].transform(lambda x: x.rolling(20).mean())
-filtered_data['SMA50'] = filtered_data.groupby('Ticker')['Close'].transform(lambda x: x.rolling(50).mean())
-
-# Generate buy/sell signals
-filtered_data['Signal'] = 0
-filtered_data.loc[
-    (filtered_data['SMA20'] > filtered_data['SMA50']) & 
-    (filtered_data['SMA20'].shift(1) <= filtered_data['SMA50'].shift(1)),
-    'Signal'
-] = 1  # Buy
-
-filtered_data.loc[
-    (filtered_data['SMA20'] < filtered_data['SMA50']) & 
-    (filtered_data['SMA20'].shift(1) >= filtered_data['SMA50'].shift(1)),
-    'Signal'
-] = -1  # Sell
-
-# The pasted code ends here
-
 # Normalize prices
 if normalize:
     for ticker in tickers:
@@ -77,43 +63,42 @@ if normalize:
         initial = filtered_data[mask]['Close'].iloc[0]
         filtered_data.loc[mask, 'Close'] = filtered_data[mask]['Close'] / initial
 
-# Apply moving average
-if ma_window:
-    for ticker in tickers:
-        mask = filtered_data['Ticker'] == ticker
-        filtered_data.loc[mask, 'SMA'] = filtered_data[mask]['Close'].rolling(ma_window).mean()
+# Strategy logic
+if strategy == "SMA Crossover" and short_window and long_window:
+    filtered_data['SMA1'] = filtered_data.groupby('Ticker')['Close'].transform(lambda x: x.rolling(short_window).mean())
+    filtered_data['SMA2'] = filtered_data.groupby('Ticker')['Close'].transform(lambda x: x.rolling(long_window).mean())
+    
+    filtered_data['Signal'] = 0
+    filtered_data.loc[
+        (filtered_data['SMA1'] > filtered_data['SMA2']) &
+        (filtered_data['SMA1'].shift(1) <= filtered_data['SMA2'].shift(1)),
+        'Signal'
+    ] = 1  # Buy
+
+    filtered_data.loc[
+        (filtered_data['SMA1'] < filtered_data['SMA2']) &
+        (filtered_data['SMA1'].shift(1) >= filtered_data['SMA2'].shift(1)),
+        'Signal'
+    ] = -1  # Sell
+else:
+    filtered_data['Signal'] = 0
 
 # Plotting
 st.title("Stock Price Chart")
 fig, ax = plt.subplots(figsize=(12, 6))
 
-#for ticker in tickers:
- #   df_plot = filtered_data[filtered_data['Ticker'] == ticker]
- #   ax.plot(df_plot['Date'], df_plot['Close'], label=f"{ticker} Close")
-    
-# later on, pasted code starts
 for ticker in tickers:
     df_plot = filtered_data[filtered_data['Ticker'] == ticker]
-    
-    # Plot price line
     ax.plot(df_plot['Date'], df_plot['Close'], label=f"{ticker} Close")
-    
-    # Plot SMA lines (optional)
-    ax.plot(df_plot['Date'], df_plot['SMA20'], linestyle='--', label=f"{ticker} SMA20", alpha=0.6)
-    ax.plot(df_plot['Date'], df_plot['SMA50'], linestyle='--', label=f"{ticker} SMA50", alpha=0.6)
-    
-    # Plot buy/sell markers
-    buys = df_plot[df_plot['Signal'] == 1]
-    sells = df_plot[df_plot['Signal'] == -1]
-    
-    ax.plot(buys['Date'], buys['Close'], '^', color='green', label=f"{ticker} Buy", markersize=8)
-    ax.plot(sells['Date'], sells['Close'], 'v', color='red', label=f"{ticker} Sell", markersize=8)
-    
-# later on, pasted code ends here
-    
-    
-    if ma_window:
-        ax.plot(df_plot['Date'], df_plot['SMA'], linestyle='--', label=f"{ticker} {ma_window}-day SMA")
+
+    if strategy == "SMA Crossover":
+        ax.plot(df_plot['Date'], df_plot['SMA1'], linestyle='--', label=f"{ticker} SMA{short_window}", alpha=0.6)
+        ax.plot(df_plot['Date'], df_plot['SMA2'], linestyle='--', label=f"{ticker} SMA{long_window}", alpha=0.6)
+
+        buys = df_plot[df_plot['Signal'] == 1]
+        sells = df_plot[df_plot['Signal'] == -1]
+        ax.plot(buys['Date'], buys['Close'], '^', color='green', label=f"{ticker} Buy", markersize=8)
+        ax.plot(sells['Date'], sells['Close'], 'v', color='red', label=f"{ticker} Sell", markersize=8)
 
 ax.set_xlabel("Date")
 ax.set_ylabel("Normalized Price" if normalize else "Close Price")
@@ -139,24 +124,15 @@ if show_volume:
 st.subheader("Filtered Data")
 st.dataframe(filtered_data)
 
-# below is the pasted code for creating table
+# Buy/Sell Signals Table
 st.subheader("Buy/Sell Signals")
 signals_table = filtered_data[filtered_data['Signal'] != 0][['Date', 'Ticker', 'Close', 'Signal']]
 signals_table['Action'] = signals_table['Signal'].map({1: 'Buy', -1: 'Sell'})
 st.dataframe(signals_table)
 
-# Download button for signal table
+# Download Buttons
+csv_filtered = filtered_data.to_csv(index=False).encode('utf-8')
 csv_signals = signals_table.to_csv(index=False).encode('utf-8')
+
+st.download_button("Download Filtered Data CSV", csv_filtered, "filtered_stock_data.csv", "text/csv")
 st.download_button("Download Signals CSV", csv_signals, "buy_sell_signals.csv", "text/csv")
-
-
-
-
-# Download Button
-csv = filtered_data.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="Download CSV",
-    data=csv,
-    file_name='filtered_stock_data.csv',
-    mime='text/csv'
-)
