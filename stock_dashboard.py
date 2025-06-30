@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
+import numpy as np
 
 # Load combined data
 folder = 'stock_data/'
@@ -41,13 +42,16 @@ show_volume = st.sidebar.checkbox("Show Volume Plot", value=False)
 
 strategy = st.sidebar.selectbox(
     "Select Strategy",
-    options=["None", "SMA Crossover"]
+    options=["None", "SMA Crossover", "RSI"]
 )
 
 short_window = long_window = None
+rsi_period = None
 if strategy == "SMA Crossover":
     short_window = st.sidebar.slider("Short SMA Window", 5, 50, 20)
     long_window = st.sidebar.slider("Long SMA Window", 10, 100, 50)
+elif strategy == "RSI":
+    rsi_period = st.sidebar.slider("RSI Period", 5, 30, 14)
 
 # Filter data
 filtered_data = combined_df[
@@ -64,11 +68,11 @@ if normalize:
         filtered_data.loc[mask, 'Close'] = filtered_data[mask]['Close'] / initial
 
 # Strategy logic
+filtered_data['Signal'] = 0
 if strategy == "SMA Crossover" and short_window and long_window:
     filtered_data['SMA1'] = filtered_data.groupby('Ticker')['Close'].transform(lambda x: x.rolling(short_window).mean())
     filtered_data['SMA2'] = filtered_data.groupby('Ticker')['Close'].transform(lambda x: x.rolling(long_window).mean())
-    
-    filtered_data['Signal'] = 0
+
     filtered_data.loc[
         (filtered_data['SMA1'] > filtered_data['SMA2']) &
         (filtered_data['SMA1'].shift(1) <= filtered_data['SMA2'].shift(1)),
@@ -80,8 +84,18 @@ if strategy == "SMA Crossover" and short_window and long_window:
         (filtered_data['SMA1'].shift(1) >= filtered_data['SMA2'].shift(1)),
         'Signal'
     ] = -1  # Sell
-else:
-    filtered_data['Signal'] = 0
+
+elif strategy == "RSI" and rsi_period:
+    def compute_rsi(series, period):
+        delta = series.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(period).mean()
+        rs = gain / loss
+        return 100 - (100 / (1 + rs))
+
+    filtered_data['RSI'] = filtered_data.groupby('Ticker')['Close'].transform(lambda x: compute_rsi(x, rsi_period))
+    filtered_data.loc[filtered_data['RSI'] < 30, 'Signal'] = 1
+    filtered_data.loc[filtered_data['RSI'] > 70, 'Signal'] = -1
 
 # Plotting
 st.title("Stock Price Chart")
@@ -95,10 +109,10 @@ for ticker in tickers:
         ax.plot(df_plot['Date'], df_plot['SMA1'], linestyle='--', label=f"{ticker} SMA{short_window}", alpha=0.6)
         ax.plot(df_plot['Date'], df_plot['SMA2'], linestyle='--', label=f"{ticker} SMA{long_window}", alpha=0.6)
 
-        buys = df_plot[df_plot['Signal'] == 1]
-        sells = df_plot[df_plot['Signal'] == -1]
-        ax.plot(buys['Date'], buys['Close'], '^', color='green', label=f"{ticker} Buy", markersize=8)
-        ax.plot(sells['Date'], sells['Close'], 'v', color='red', label=f"{ticker} Sell", markersize=8)
+    buys = df_plot[df_plot['Signal'] == 1]
+    sells = df_plot[df_plot['Signal'] == -1]
+    ax.plot(buys['Date'], buys['Close'], '^', color='green', label=f"{ticker} Buy", markersize=8)
+    ax.plot(sells['Date'], sells['Close'], 'v', color='red', label=f"{ticker} Sell", markersize=8)
 
 ax.set_xlabel("Date")
 ax.set_ylabel("Normalized Price" if normalize else "Close Price")
