@@ -139,6 +139,19 @@ if show_volume:
 st.subheader("Filtered Data")
 st.dataframe(filtered_data)
 
+# below is the pasted code for creating table
+st.subheader("Buy/Sell Signals")
+signals_table = filtered_data[filtered_data['Signal'] != 0][['Date', 'Ticker', 'Close', 'Signal']]
+signals_table['Action'] = signals_table['Signal'].map({1: 'Buy', -1: 'Sell'})
+st.dataframe(signals_table)
+
+# Download button for signal table
+csv_signals = signals_table.to_csv(index=False).encode('utf-8')
+st.download_button("Download Signals CSV", csv_signals, "buy_sell_signals.csv", "text/csv")
+
+
+
+
 # Download Button
 csv = filtered_data.to_csv(index=False).encode('utf-8')
 st.download_button(
